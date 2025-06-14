@@ -6,7 +6,7 @@ from rest_framework import status
 from django.utils.timezone import now
 from collections import defaultdict
 from datetime import timedelta
-from django.db.models import Sum
+from django.db.models import Sum, F
 
 from progress_tracker.models import AnalyticsOccurrence
 from .serializer import AnalyticsOccurrenceSerializer
@@ -164,24 +164,21 @@ class BurnPerTaskSummaryView(APIView):
 
     def get(self, request):
         user = request.user
-
+        # filter completed occurrences, join through analytics to exercise
         qs = AnalyticsOccurrence.objects.filter(
-            analytics__user=user,
-            status="completed",
+            analytics__user=user, status="completed"
         )
-
+        # aggregate total calories burned per date
         summary = (
-            qs.values("analytics_id", "analytics__exercise__exercise_name")
-            .annotate(total_calories=Sum("calories_burned"))
-            .order_by("analytics_id")
+            qs.values("date")
+            .annotate(total_calories=Sum(F("analytics__exercise__calories_burned")))
+            .order_by("date")
         )
-
         data = [
             {
-                "analytics_id": item["analytics_id"],
-                "exercise": item["analytics__exercise__exercise_name"],
+                "date": item["date"],
                 "total_calories": item["total_calories"] or 0,
             }
             for item in summary
         ]
-        return Response(data, status=status.HTTP_200_OK)
+        return Response(data)
