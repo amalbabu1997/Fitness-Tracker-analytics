@@ -1,25 +1,23 @@
-"""
-URL configuration for FitnessProject project.
-
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/5.0/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
-"""
-
 # FitnessProject/urls.py
+
 from django.contrib import admin
 from django.urls import path, include
 from core.views import csrf
-from users.views import LoginAPIView, SignupAPIView, CustomerProfileView
+from django.contrib.auth import views as auth_views
+from users.views import (
+    LoginAPIView,
+    SignupAPIView,
+    LogoutAPIView,
+    CustomerProfileView,
+    ForgotPasswordAPIView,
+    ChangePasswordView,
+)
+from profiles.views import (
+    ProfileEditView,
+    GoalUpdateView,
+    SubscriptionUpdateView,
+)
+
 from Excercise.views import ExerciseByGoalView
 from Analytics.views import (
     ExerciseAnalyticsCreateView,
@@ -31,14 +29,38 @@ from progress_tracker.views import (
     AnalyticsProgressSummaryView,
     BurnPerTaskSummaryView,
 )
+from Foodcalorie.views import (
+    FoodCategoryListView,
+    FoodSizeListView,
+    FoodItemListView,
+    FoodConsumptionCreateView,
+    ConsumptionSummaryView,
+)
+from Health.views import DailyCheckInView
+from HealthAnalytics.views import DailyCheckInListView
+
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    path("api/subscriptions/", include("subscriptions.urls")),
+    # CSRF endpoint (if you need one)
+    path("api/csrf/", csrf, name="csrf"),
+    # auth
     path("api/signupbk/", SignupAPIView.as_view(), name="signup"),
     path("api/login/", LoginAPIView.as_view(), name="login"),
     path("api/payment/", include("payment.urls")),
-    path("api/profile/", CustomerProfileView.as_view(), name="profile"),
+    path("api/logout/", LogoutAPIView.as_view(), name="logout"),
+    # subscription‐plans listing
+    path("api/subscriptions/", include("subscriptions.urls")),
+    # profile: view & edit basic info
+    path("api/profile/", ProfileEditView.as_view(), name="profile-detail"),
+    # change goal
+    path(
+        "api/profile/subscription/",
+        SubscriptionUpdateView.as_view(),
+        name="profile-subscription",
+    ),
+    path("api/profile/goal/", GoalUpdateView.as_view(), name="profile-goal"),
+    # exercise analytics
     path("api/exercises/", ExerciseByGoalView.as_view(), name="exercise-by-goal"),
     path(
         "api/exercise-analytics/create/",
@@ -50,15 +72,11 @@ urlpatterns = [
         CyclicAnalyticsTodayView.as_view(),
         name="analytics-today",
     ),
+    # occurrences & summaries
     path(
         "api/occurrences/create-or-update/",
         CreateOrUpdateOccurrenceView.as_view(),
-        name="create_or_update_occurrence",
-    ),
-    path(
-        "api/achievement-summary/",
-        AnalyticsStatusSummaryView.as_view(),
-        name="achievement-summary",
+        name="create-or-update-occurrence",
     ),
     path(
         "api/analytics/progress-summary/",
@@ -66,8 +84,58 @@ urlpatterns = [
         name="analytics-progress-summary",
     ),
     path(
-        "api/burn-summary/",
-        BurnPerTaskSummaryView.as_view(),
-        name="burn-per-task-summary",
+        "api/achievement-summary/",
+        AnalyticsStatusSummaryView.as_view(),
+        name="achievement-summary",
+    ),
+    path("api/burn-summary/", BurnPerTaskSummaryView.as_view(), name="burn-summary"),
+    # food & calories
+    path(
+        "api/foodcategories/", FoodCategoryListView.as_view(), name="food-category-list"
+    ),
+    path("api/fooditems/", FoodItemListView.as_view(), name="food-item-list"),
+    path("api/sizes/", FoodSizeListView.as_view(), name="food-size-list"),
+    path("api/meal/log/", FoodConsumptionCreateView.as_view(), name="meal-log"),
+    path(
+        "api/consumption-summary/",
+        ConsumptionSummaryView.as_view(),
+        name="consumption-summary",
+    ),
+    # health check-in
+    path("api/health-checkup/", DailyCheckInView.as_view(), name="health-checkup"),
+    path(
+        "api/health/daily-checkin/",
+        DailyCheckInListView.as_view(),
+        name="daily-checkin-list",
+    ),
+    path(
+        "api/password-reset/",
+        ForgotPasswordAPIView,
+        name="password_reset",
+    ),
+    # 2) Confirmation that email was sent (GET)
+    path(
+        "api/password-reset-done/",
+        auth_views.PasswordResetDoneView.as_view(),
+        name="password_reset_done",
+    ),
+    # 3) Link with token → built-in form to set new password (GET & POST)
+    path(
+        "api/password-reset-confirm/<uidb64>/<token>/",
+        auth_views.PasswordResetConfirmView.as_view(
+            success_url="/api/password-reset-complete/"
+        ),
+        name="password_reset_confirm",
+    ),
+    # 4) Final success page (GET)
+    path(
+        "api/password-reset-complete/",
+        auth_views.PasswordResetCompleteView.as_view(),
+        name="password_reset_complete",
+    ),
+    path(
+        "api/change-password/",
+        ChangePasswordView.as_view(),
+        name="change_password",
     ),
 ]

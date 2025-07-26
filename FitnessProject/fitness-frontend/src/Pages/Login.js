@@ -115,6 +115,20 @@ export default function Login() {
               />
             </Grid>
 
+            <Grid item xs={12} sx={{ textAlign: "right" }}>
+              <Button
+                onClick={() => navigate("/forgot-password")}
+                sx={{
+                  textTransform: "none",
+                  fontSize: "0.875rem",
+                  mt: 0.5,
+                  color: theme.palette.primary.main,
+                }}
+              >
+                Forgot Password?
+              </Button>
+            </Grid>
+
             <Grid item xs={12}>
               <Button
                 type="submit"

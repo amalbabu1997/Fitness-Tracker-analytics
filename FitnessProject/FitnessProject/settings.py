@@ -25,10 +25,24 @@ SECRET_KEY = "django-insecure-!-u4ld83k33xyyu*f7j@g*%27-o%_&0hkjf&7#m5w))!mjo+7h
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    "localhost",
+    "127.0.0.1",
+    "10.0.0.101",
+]
 
-
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = "smtp.gmail.com"
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = "amalbabu02101997@gmail.com"
+EMAIL_HOST_PASSWORD = "ferg acva ghil ilro"
 # Application definition
+
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -45,6 +59,8 @@ INSTALLED_APPS = [
     "Excercise",
     "Analytics",
     "progress_tracker",
+    "Health",
+    "Foodcalorie",
 ]
 AUTH_USER_MODEL = "users.CustomUser"
 MIDDLEWARE = [
@@ -59,6 +75,17 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = "FitnessProject.urls"
+
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        # point at the new module:
+        "users.authentication.CsrfExemptSessionAuthentication",
+        "rest_framework.authentication.BasicAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+    ],
+}
 
 TEMPLATES = [
     {

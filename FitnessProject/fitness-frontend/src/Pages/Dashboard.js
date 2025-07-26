@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { useTheme } from "@mui/material";
+
 import {
   AppBar,
   Toolbar,
@@ -18,8 +20,17 @@ import {
   Modal,
   TextField,
   Container,
+  Avatar,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  List,
+  ListItemButton,
+  ListItemText,
+  Divider,
 } from "@mui/material";
-import AccountCircle from "@mui/icons-material/AccountCircle";
+
 import {
   PieChart,
   Pie,
@@ -40,6 +51,7 @@ import dayjs from "dayjs";
 import isoWeek from "dayjs/plugin/isoWeek";
 import isSameOrAfter from "dayjs/plugin/isSameOrAfter";
 import isSameOrBefore from "dayjs/plugin/isSameOrBefore";
+
 dayjs.extend(isoWeek);
 dayjs.extend(isSameOrAfter);
 dayjs.extend(isSameOrBefore);
@@ -71,10 +83,21 @@ const groupSleepData = (data, viewType) => {
 };
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   // --- State ---
 
   const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [goal, setGoal] = useState("");
+  const [profileOpen, setProfileOpen] = useState(false);
+
+  const initials = useMemo(() => {
+    if (!firstName || !lastName) return "";
+    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+  }, [firstName, lastName]);
+
+  const handleProfileOpen = () => setProfileOpen(true);
+  const handleProfileClose = () => setProfileOpen(false);
   const [mealPrompt, setMealPrompt] = useState("");
   const [durationType, setDurationType] = useState("Daily");
   const [selectedExercise, setSelectedExercise] = useState("");
@@ -111,12 +134,7 @@ export default function Dashboard() {
   const [mealType, setMealType] = useState("");
   const [foodModalOpen, setFoodModalOpen] = useState(false);
   const [categories, setCategories] = useState([]);
-  // const [items, setItems] = useState([]);
   const [sizes, setSizes] = useState([]);
-  // const [selectedCat, setSelectedCat] = useState("");
-  // const [selectedItem, setSelectedItem] = useState("");
-  // const [selectedSize, setSelectedSize] = useState("");
-  // const [quantity, setQuantity] = useState("");
   const [entries, setEntries] = useState([
     { category: "", food_item: "", size: "", quantity: "" },
   ]);
@@ -128,41 +146,79 @@ export default function Dashboard() {
   const COLORS = ["#00C49F", "#FF8042", "#FFBB28"];
   const theme = useTheme();
 
+  const [editOpen, setEditOpen] = useState(false);
+  const [profileData, setProfileData] = useState({
+    first_name: "",
+    middle_name: "",
+    last_name: "",
+    email: "",
+    phone_number: "",
+  });
+
+  const [goalOpen, setGoalOpen] = useState(false);
+  const [newGoal, setNewGoal] = useState(goal || "");
+  const [subOpen, setSubOpen] = useState(false);
+  const [newPlan, setNewPlan] = useState(null);
+  const [plans, setPlans] = useState([]);
+  //const [subscriptionPlan, setSubscriptionPlan] = useState("");
+
+  const [passwordOpen, setPasswordOpen] = useState(false);
+  const [passwordData, setPasswordData] = useState({
+    old_password: "",
+    new_password: "",
+    confirm_password: "",
+  });
+  const handleChangePassword = () => setPasswordOpen(true);
+
   // --- Load profile & meal prompt ---
   useEffect(() => {
     // fetch profile
     axios
-      .get("http://localhost:8000/api/profile/", { withCredentials: true })
+      .get("/api/profile/", { withCredentials: true })
       .then((res) => {
+        console.log("Profile payload:", res.data);
         setFirstName(res.data.first_name || res.data.username);
-        setGoal(res.data.goal_description);
-      });
+        setLastName(res.data.last_name || "");
+        setGoal(res.data.goal_description ?? res.data.goal ?? "");
+      })
+      .catch(console.error);
 
     // derive both prompt and type
     const hour = new Date().getHours();
     const type = hour < 12 ? "breakfast" : hour < 17 ? "lunch" : "dinner";
-
-    setMealType(type); // e.g. "breakfast", "lunch", or "dinner"
+    setMealType(type);
 
     // capitalise and append label exactly as before
     const label = type.charAt(0).toUpperCase() + type.slice(1);
     setMealPrompt(`${label} Calorie Check`);
-  }, []);
+  }, []); // ← this closes *this* useEffect
 
-  // --- Load exercises on goal change ---
-  useEffect(() => {
+  const loadExercises = useCallback(() => {
     if (!goal) return;
+    console.log(" loading exercises for goal:", goal);
     axios
-      .get(`http://localhost:8000/api/exercises/?goal_category=${goal}`, {
+      .get(`/api/exercises/?goal_category=${encodeURIComponent(goal)}`, {
         withCredentials: true,
       })
-      .then((res) => setExercises(res.data));
+      .then((res) => {
+        console.log(" exercises payload:", res.data);
+        setExercises(res.data);
+      })
+      .catch((err) =>
+        console.error(" failed to load exercises for goal", goal, err)
+      );
   }, [goal]);
+
+  useEffect(() => {
+    if (challengeOpen && goal) {
+      loadExercises();
+    }
+  }, [challengeOpen, goal, loadExercises]);
 
   // --- Fetch functions ---
   const fetchTodayActivities = useCallback(() => {
     axios
-      .get("http://localhost:8000/api/exercise-analytics/today/", {
+      .get("/api/exercise-analytics/today/", {
         withCredentials: true,
       })
       .then((res) => setDailyActivity(res.data));
@@ -170,10 +226,9 @@ export default function Dashboard() {
 
   const fetchAnalyticsProgress = useCallback(() => {
     axios
-      .get(
-        `http://localhost:8000/api/analytics/progress-summary/?type=${taskFilter}`,
-        { withCredentials: true }
-      )
+      .get(`/api/analytics/progress-summary/?type=${taskFilter}`, {
+        withCredentials: true,
+      })
       .then((res) => {
         const summary = res.data.reduce(
           (acc, item) => {
@@ -195,7 +250,7 @@ export default function Dashboard() {
 
   const fetchAchievementData = useCallback((type) => {
     axios
-      .get(`http://localhost:8000/api/achievement-summary/?type=${type}`, {
+      .get(`/api/achievement-summary/?type=${type}`, {
         withCredentials: true,
       })
       .then((res) => setAchievementData(res.data));
@@ -207,7 +262,7 @@ export default function Dashboard() {
     if (end) params.end = end;
 
     axios
-      .get("http://localhost:8000/api/burn-summary/", {
+      .get("/api/burn-summary/", {
         params,
         withCredentials: true,
       })
@@ -227,7 +282,7 @@ export default function Dashboard() {
     if (healthEnd) params.end = healthEnd;
 
     axios
-      .get("http://localhost:8000/api/health/daily-checkin/", {
+      .get("/api/health/daily-checkin/", {
         params,
         withCredentials: true,
       })
@@ -274,10 +329,10 @@ export default function Dashboard() {
   useEffect(() => {
     if (!foodModalOpen) return;
     Promise.all([
-      axios.get("http://localhost:8000/api/foodcategories/", {
+      axios.get("/api/foodcategories/", {
         withCredentials: true,
       }),
-      axios.get("http://localhost:8000/api/sizes/", { withCredentials: true }),
+      axios.get("/api/sizes/", { withCredentials: true }),
     ])
       .then(([c, s]) => {
         setCategories(c.data);
@@ -297,7 +352,7 @@ export default function Dashboard() {
   const fetchItemsForCat = (catId) => {
     if (!catId || itemsByCat[catId]) return;
     axios
-      .get("http://localhost:8000/api/fooditems/", {
+      .get("/api/fooditems/", {
         params: { category: catId },
         withCredentials: true,
       })
@@ -305,6 +360,14 @@ export default function Dashboard() {
       .catch(console.error);
   };
 
+  useEffect(() => {
+    axios
+      .get("/api/subscriptions/subscription-plans/", {
+        withCredentials: true,
+      })
+      .then((res) => setPlans(res.data))
+      .catch((err) => console.error("Failed to load subscription plans:", err));
+  }, []);
   const updateEntry = (idx, field, value) => {
     setEntries((prev) =>
       prev.map((row, i) => {
@@ -332,7 +395,7 @@ export default function Dashboard() {
     // build an array of promises
     const saves = entries.map((r) =>
       axios.post(
-        "http://localhost:8000/api/meal/log/",
+        "/api/meal/log/",
         {
           meal_type: mealType,
           category: r.category,
@@ -382,7 +445,7 @@ export default function Dashboard() {
     const today = new Date().toISOString().slice(0, 10);
     axios
       .post(
-        "http://localhost:8000/api/occurrences/create-or-update/",
+        "/api/occurrences/create-or-update/",
         { analytics_id: id, date: today, status },
         { withCredentials: true }
       )
@@ -393,7 +456,7 @@ export default function Dashboard() {
     if (!selectedExercise || !durationType || !occurrenceCount) return;
     axios
       .post(
-        "http://localhost:8000/api/exercise-analytics/create/",
+        "/api/exercise-analytics/create/",
         {
           exercise: selectedExercise,
           exercise_type: durationType,
@@ -421,7 +484,7 @@ export default function Dashboard() {
     }
 
     axios
-      .get("http://localhost:8000/api/consumption-summary/", {
+      .get("/api/consumption-summary/", {
         params,
         withCredentials: true,
       })
@@ -432,7 +495,7 @@ export default function Dashboard() {
   const handleHealthSubmit = () => {
     axios
       .post(
-        "http://localhost:8000/api/health-checkup/",
+        "/api/health-checkup/",
         {
           source: "manual",
           heart_rate: heartRate || null,
@@ -463,6 +526,75 @@ export default function Dashboard() {
       .catch(() => alert("Save failed"));
   };
 
+  // Settings menu handlers
+  const handleEditProfile = () => {
+    // preload existing profile
+    axios
+      .get("/api/profile/", { withCredentials: true })
+      .then((res) => setProfileData(res.data))
+      .then(() => setEditOpen(true))
+      .catch(console.error);
+  };
+  const handleChangeGoal = () => {
+    setNewGoal(goal);
+    setGoalOpen(true);
+  };
+  const handleChangeSubscription = () => setSubOpen(true);
+  const saveGoal = () => {
+    axios
+      .patch(
+        "/api/profile/goal/", // ← must include "goal/"
+        { goal_description: newGoal },
+        { withCredentials: true }
+      )
+      .then(() => {
+        setGoal(newGoal);
+        setGoalOpen(false);
+      })
+      .catch(() => alert("Failed to update goal."));
+  };
+
+  const saveSubscription = () => {
+    axios
+      .patch(
+        "/api/subscriptions/user-subscription/",
+        { subscription_plan: newPlan },
+        { withCredentials: true }
+      )
+      .then(() => {
+        setSubOpen(false);
+        // Optionally show a success message or refresh user data
+      })
+      .catch((err) => {
+        console.error(err);
+        alert("Failed to update subscription.");
+      });
+  };
+  const openChallengeModal = () => {
+    setChallengeOpen(true);
+  };
+
+  const handleLogout = () => {
+    axios
+      .post("/api/logout/", {}, { withCredentials: true })
+      .then(() => {
+        localStorage.clear();
+        sessionStorage.clear();
+
+        // 2) Reset your in-memory state by either:
+        //    a) navigating to /login with replace + doing a hard reload, or
+        //    b) manually clearing each slice of state you care about
+        //
+        // Here’s the quick-and-dirty way:
+        navigate("/login", { replace: true });
+        window.location.reload();
+      })
+      .catch((err) => {
+        console.error("Logout failed:", err);
+        alert("Could not log out. Try again.");
+      });
+  };
+
   return (
     <Box
       sx={{
@@ -473,23 +605,223 @@ export default function Dashboard() {
     >
       <AppBar position="static" color="primary">
         <Toolbar>
-          <IconButton edge="start" color="inherit" sx={{ mr: 2 }}>
-            <AccountCircle />
-          </IconButton>
           <Typography variant="h6" sx={{ flexGrow: 1 }}>
-            {firstName}'s Dashboard
+            {firstName.charAt(0).toUpperCase() + firstName.slice(1)}'s Dashboard
           </Typography>
-          <Button color="inherit" onClick={() => setChallengeOpen(true)}>
+          <Button sx={{ ml: 2 }} color="inherit" onClick={openChallengeModal}>
             Add New Analytics Record
           </Button>
-          <Button color="inherit" onClick={() => setHealthcheckOpen(true)}>
+          <Button
+            sx={{ ml: 2 }}
+            color="inherit"
+            onClick={() => setHealthcheckOpen(true)}
+          >
             Daily Health Checkup
           </Button>
-          <Button color="inherit" onClick={() => setFoodModalOpen(true)}>
+          <Button
+            sx={{ ml: 2 }}
+            color="inherit"
+            onClick={() => setFoodModalOpen(true)}
+          >
             {mealPrompt}
           </Button>
+          <IconButton
+            edge="end"
+            color="inherit"
+            onClick={handleProfileOpen}
+            sx={{ ml: 2, mr: 2 }}
+          >
+            <Avatar sx={{ bgcolor: theme.palette.secondary.main }}>
+              {initials}
+            </Avatar>
+          </IconButton>
         </Toolbar>
       </AppBar>
+
+      <Dialog open={profileOpen} onClose={handleProfileClose}>
+        <DialogTitle>Settings</DialogTitle>
+        <DialogContent dividers>
+          <List disablePadding>
+            <ListItemButton onClick={handleEditProfile}>
+              <ListItemText primary="Edit your personal information" />
+            </ListItemButton>
+            <Divider />
+
+            <ListItemButton onClick={handleChangePassword}>
+              <ListItemText primary="Change your password" />
+            </ListItemButton>
+            <Divider />
+
+            <ListItemButton onClick={handleChangeGoal}>
+              <ListItemText primary="Change your goal" />
+            </ListItemButton>
+            <Divider />
+
+            <ListItemButton onClick={handleChangeSubscription}>
+              <ListItemText primary="Change your subscription plan" />
+            </ListItemButton>
+            <Divider />
+
+            <ListItemButton onClick={handleLogout}>
+              <ListItemText primary="Log out" />
+            </ListItemButton>
+          </List>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editOpen} onClose={() => setEditOpen(false)}>
+        <DialogTitle>Edit Profile</DialogTitle>
+        <DialogContent dividers>
+          <Box component="form" sx={{ display: "grid", gap: 2, width: 400 }}>
+            {[
+              { name: "first_name", label: "First Name" },
+              { name: "middle_name", label: "Middle Name" },
+              { name: "last_name", label: "Last Name" },
+              { name: "email", label: "Email", type: "email" },
+              { name: "phone_number", label: "Phone Number" },
+            ].map((field) => (
+              <TextField
+                key={field.name}
+                label={field.label}
+                type={field.type || "text"}
+                fullWidth
+                value={profileData[field.name] || ""}
+                onChange={(e) =>
+                  setProfileData((prev) => ({
+                    ...prev,
+                    [field.name]: e.target.value,
+                  }))
+                }
+              />
+            ))}
+            <Button
+              variant="contained"
+              onClick={() => {
+                axios
+                  .patch("/api/profile/", profileData, {
+                    withCredentials: true,
+                  })
+                  .then(() => {
+                    setEditOpen(false);
+                    // optionally refresh other parts of the UI
+                  })
+                  .catch((err) => {
+                    console.error(err);
+                    alert("Failed to update profile.");
+                  });
+              }}
+            >
+              Save Changes
+            </Button>
+          </Box>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={goalOpen} onClose={() => setGoalOpen(false)} fullWidth>
+        <DialogTitle>Change Your Goal</DialogTitle>
+        <DialogContent dividers>
+          <FormControl fullWidth margin="normal">
+            <InputLabel id="goal-select-label">Goal</InputLabel>
+            <Select
+              labelId="goal-select-label"
+              value={newGoal}
+              label="Goal"
+              onChange={(e) => setNewGoal(e.target.value)}
+            >
+              <MenuItem value="">
+                <em>Select your goal</em>
+              </MenuItem>
+              <MenuItem value="Weight Loss">Weight Loss</MenuItem>
+              <MenuItem value="Build Muscle">Build Muscle</MenuItem>
+              <MenuItem value="Weight Gain">Weight Gain</MenuItem>
+              <MenuItem value="Normal">Normal</MenuItem>
+            </Select>
+          </FormControl>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setGoalOpen(false)}>Cancel</Button>
+          <Button variant="contained" onClick={saveGoal} disabled={!newGoal}>
+            Save
+          </Button>
+        </DialogActions>
+      </Dialog>
+      {/* — Subscription Dialog — */}
+      <Dialog open={subOpen} onClose={() => setSubOpen(false)} fullWidth>
+        <DialogTitle>Change Your Subscription Plan</DialogTitle>
+        <DialogContent dividers>
+          <FormControl fullWidth>
+            <InputLabel>Plan</InputLabel>
+            <Select
+              value={newPlan}
+              label="Plan"
+              onChange={(e) => setNewPlan(e.target.value)}
+            >
+              {plans.map((plan) => (
+                <MenuItem key={plan.id} value={plan.id}>
+                  {plan.plan_name}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setSubOpen(false)}>Cancel</Button>
+          <Button variant="contained" onClick={saveSubscription}>
+            Save
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={passwordOpen} onClose={() => setPasswordOpen(false)}>
+        <DialogTitle>Change Password</DialogTitle>
+        <DialogContent dividers>
+          <Box component="form" sx={{ display: "grid", gap: 2, width: 360 }}>
+            {[
+              { name: "old_password", label: "Old Password" },
+              { name: "new_password", label: "New Password" },
+              { name: "confirm_password", label: "Confirm New Password" },
+            ].map(({ name, label }) => (
+              <TextField
+                key={name}
+                name={name}
+                label={label}
+                type="password"
+                fullWidth
+                value={passwordData[name]}
+                onChange={(e) =>
+                  setPasswordData((p) => ({ ...p, [name]: e.target.value }))
+                }
+              />
+            ))}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPasswordOpen(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            disabled={
+              !passwordData.old_password ||
+              !passwordData.new_password ||
+              passwordData.new_password !== passwordData.confirm_password
+            }
+            onClick={async () => {
+              try {
+                const res = await axios.post(
+                  "/api/change-password/",
+                  passwordData,
+                  { withCredentials: true }
+                );
+                alert(res.data.detail);
+                setPasswordOpen(false);
+              } catch (err) {
+                alert(err.response?.data?.detail || "Error changing password");
+              }
+            }}
+          >
+            Save
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Container maxWidth="xl" sx={{ py: 4 }}>
         {/* Today's Analytics Cards */}
@@ -578,7 +910,8 @@ export default function Dashboard() {
                     nameKey="name"
                     cx="50%"
                     cy="50%"
-                    outerRadius={80}
+                    innerRadius={theme.charts.pieInnerRadius}
+                    outerRadius={theme.charts.pieOuterRadius}
                     label
                   >
                     {progressSummary.map((entry, idx) => (
@@ -617,7 +950,8 @@ export default function Dashboard() {
                     nameKey="name"
                     cx="50%"
                     cy="50%"
-                    outerRadius={80}
+                    innerRadius={theme.charts.pieInnerRadius}
+                    outerRadius={theme.charts.pieOuterRadius}
                     label
                   >
                     {achievementData.map((entry, idx) => (
@@ -944,9 +1278,22 @@ export default function Dashboard() {
           <Typography variant="h6" gutterBottom>
             Record New Analytics
           </Typography>
+
+          {/* ── DEBUG: show goal + fetched exercises count ── */}
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            sx={{ mb: 2, fontStyle: "italic" }}
+          >
+            Debug → goal: “{goal}”, exercises.length: {exercises.length}
+          </Typography>
+
+          {/* Analytics Type */}
           <FormControl fullWidth margin="normal">
-            <InputLabel>Analytics Type</InputLabel>
+            <InputLabel id="analytics-type-label">Analytics Type</InputLabel>
             <Select
+              labelId="analytics-type-label"
+              id="analytics-type-select"
               value={durationType}
               label="Analytics Type"
               onChange={(e) => setDurationType(e.target.value)}
@@ -956,13 +1303,22 @@ export default function Dashboard() {
               <MenuItem value="Monthly">Monthly</MenuItem>
             </Select>
           </FormControl>
+
+          {/* Exercise Picker */}
           <FormControl fullWidth margin="normal">
-            <InputLabel>Exercise</InputLabel>
+            <InputLabel id="exercise-select-label">Exercise</InputLabel>
             <Select
+              labelId="exercise-select-label"
+              id="exercise-select"
               value={selectedExercise}
               label="Exercise"
               onChange={(e) => setSelectedExercise(e.target.value)}
             >
+              {/* default empty choice */}
+              <MenuItem value="">
+                <em>Select an exercise</em>
+              </MenuItem>
+
               {exercises.map((ex) => (
                 <MenuItem key={ex.id} value={ex.id}>
                   {ex.exercise_name} ({ex.calories_burned} cal)
@@ -970,6 +1326,8 @@ export default function Dashboard() {
               ))}
             </Select>
           </FormControl>
+
+          {/* Repeat Count */}
           <TextField
             label="Repeat For (Times)"
             type="number"
@@ -981,6 +1339,8 @@ export default function Dashboard() {
               setOccurrenceCount(Math.max(1, parseInt(e.target.value, 10)))
             }
           />
+
+          {/* Save Button */}
           <Button
             fullWidth
             variant="contained"

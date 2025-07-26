@@ -6,6 +6,10 @@ import HomePage from "./Pages/HomePage";
 import Signup from "./Pages/SignUp";
 import Login from "./Pages/Login";
 import Dashboard from "./Pages/Dashboard";
+import ForgotPassword from "./Pages/ForgetPassword";
+import axios from "axios";
+
+axios.defaults.withCredentials = true;
 
 export default function App() {
   const [tokens, setTokens] = useState(null);
@@ -22,6 +26,7 @@ export default function App() {
   const theme = createTheme({
     palette: tokens.palette,
     typography: { fontFamily: tokens.fonts.default },
+    charts: tokens.charts,
     components: {
       ...tokens.components,
       MuiButton: {
@@ -48,6 +53,7 @@ export default function App() {
           <Route path="/signup" element={<Signup />} />
           <Route path="/login" element={<Login />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
         </Routes>
       </Router>
     </ThemeProvider>

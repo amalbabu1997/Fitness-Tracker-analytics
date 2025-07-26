@@ -164,16 +164,30 @@ class BurnPerTaskSummaryView(APIView):
 
     def get(self, request):
         user = request.user
-        # filter completed occurrences, join through analytics to exercise
+        period = request.query_params.get("type", None)
+        start = request.query_params.get("start", None)  # YYYY-MM-DD
+        end = request.query_params.get("end", None)  # YYYY-MM-DD
+
+        # Base queryset: only completed occurrences by this user
         qs = AnalyticsOccurrence.objects.filter(
-            analytics__user=user, status="completed"
+            analytics__user=user,
+            status="completed",
         )
-        # aggregate total calories burned per date
+
+        if period:
+            qs = qs.filter(analytics__exercise_type=period)
+
+        if start:
+            qs = qs.filter(date__gte=start)
+        if end:
+            qs = qs.filter(date__lte=end)
+
         summary = (
             qs.values("date")
             .annotate(total_calories=Sum(F("analytics__exercise__calories_burned")))
             .order_by("date")
         )
+
         data = [
             {
                 "date": item["date"],

@@ -1,9 +1,10 @@
 from rest_framework import serializers
 from django.db import transaction
+from django.contrib.auth import authenticate
+
 from .models import CustomUser, CustomerProfile, DimContactInfo
 from subscriptions.models import DimSubscriptionPlan
 from payment.models import PaymentMethod
-from django.contrib.auth import authenticate
 
 
 class SignupSerializer(serializers.Serializer):
@@ -24,7 +25,6 @@ class SignupSerializer(serializers.Serializer):
     middle_name = serializers.CharField(
         max_length=150, required=False, allow_blank=True, allow_null=True
     )
-
     payment_method = serializers.PrimaryKeyRelatedField(
         queryset=PaymentMethod.objects.filter(is_active=True)
     )
@@ -40,22 +40,20 @@ class SignupSerializer(serializers.Serializer):
         return value
 
     def create(self, validated_data):
-        print("Validated data:", validated_data)
         try:
             with transaction.atomic():
-                # Extract fields
-                username = validated_data.get("username")
-                email = validated_data.get("email")
-                subscription_plan = validated_data.get("subscription_plan")
-                password = validated_data.get("password")
-                gender = validated_data.get("gender")
-                age = validated_data.get("age")
-                goal_description = validated_data.get("goal_description")
-                phone_number = validated_data.get("phone_number")
-                first_name = validated_data.get("first_name")
-                last_name = validated_data.get("last_name")
+                username = validated_data["username"]
+                email = validated_data["email"]
+                subscription_plan = validated_data["subscription_plan"]
+                password = validated_data["password"]
+                gender = validated_data["gender"]
+                age = validated_data["age"]
+                goal_description = validated_data["goal_description"]
+                phone_number = validated_data["phone_number"]
+                first_name = validated_data["first_name"]
+                last_name = validated_data["last_name"]
                 middle_name = validated_data.get("middle_name", "")
-                payment_method = validated_data.get("payment_method")
+                payment_method = validated_data["payment_method"]
 
                 user = CustomUser(
                     username=username,
@@ -72,7 +70,6 @@ class SignupSerializer(serializers.Serializer):
                 contact_info = DimContactInfo.objects.create(
                     phone_number=phone_number, email=email
                 )
-                print("Created DimContactInfo:", contact_info)
 
                 CustomerProfile.objects.create(
                     user=user,
@@ -91,15 +88,11 @@ class LoginSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True)
 
     def validate(self, data):
-        print("Validated data:", data)
         username = data.get("username")
         password = data.get("password")
-
         if username and password:
-            print("Attempting to authenticate:", username)
             user = authenticate(username=username, password=password)
             if not user:
-                print("Authentication failed for:", username)
                 raise serializers.ValidationError(
                     "Authentication failed for the provided credentials."
                 )
@@ -113,24 +106,32 @@ class LoginSerializer(serializers.Serializer):
 
 class CustomerProfileSerializer(serializers.ModelSerializer):
     first_name = serializers.CharField(source="user.first_name", read_only=True)
+    middle_name = serializers.CharField(source="user.middle_name", read_only=True)
     last_name = serializers.CharField(source="user.last_name", read_only=True)
     username = serializers.CharField(source="user.username", read_only=True)
     email = serializers.EmailField(source="user.email", read_only=True)
     subscription_plan = serializers.CharField(
         source="user.subscription_plan.plan_name", read_only=True
     )
+    phone_number = serializers.SerializerMethodField()
 
     class Meta:
         model = CustomerProfile
         fields = [
             "id",
-            "goal_description",
-            "point_balance",
-            "gender",
-            "age",
             "first_name",
+            "middle_name",
             "last_name",
             "username",
             "email",
+            "phone_number",
             "subscription_plan",
+            "gender",
+            "age",
+            "goal_description",
+            "point_balance",
         ]
+
+    def get_phone_number(self, profile):
+        ci = getattr(profile, "contact_info", None)
+        return ci.phone_number if ci else ""

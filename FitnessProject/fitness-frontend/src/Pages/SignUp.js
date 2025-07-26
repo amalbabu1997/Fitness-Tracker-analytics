@@ -38,7 +38,7 @@ function PaymentComponent({
   // Fetch available payment methods.
   useEffect(() => {
     axios
-      .get("http://127.0.0.1:8000/api/payment/methods/")
+      .get("http://localhost:8000/api/payment/methods/")
       .then((res) => setPaymentMethods(res.data))
       .catch((err) => console.error("Error fetching payment methods:", err));
   }, []);
@@ -97,7 +97,7 @@ function PaymentComponent({
 
     try {
       const response = await axios.post(
-        "http://127.0.0.1:8000/api/payment/submit/",
+        "http://localhost:8000/api/payment/submit/",
         payload
       );
       if (response.data.status === "completed") {
@@ -238,7 +238,7 @@ export default function Signup() {
   // Fetch subscription plans from the backend.
   useEffect(() => {
     axios
-      .get("http://127.0.0.1:8000/api/subscriptions/subscription-plans/")
+      .get("http://localhost:8000/api/subscriptions/subscription-plans/")
       .then((res) => setPlans(res.data))
       .catch((err) => console.error("Error fetching subscription plans:", err));
   }, []);
@@ -272,7 +272,7 @@ export default function Signup() {
         age: parseInt(formData.age, 10),
         payment_method: paymentResponse.payment_method,
       };
-      await axios.post("http://127.0.0.1:8000/api/signupbk/", dataToSend, {
+      await axios.post("http://localhost:8000/api/signupbk/", dataToSend, {
         withCredentials: true,
       });
       alert("Signup and Payment successful!");
