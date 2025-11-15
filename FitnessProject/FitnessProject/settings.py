@@ -36,7 +36,7 @@ EMAIL_HOST = "smtp.gmail.com"
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = "amalbabu02101997@gmail.com"
-EMAIL_HOST_PASSWORD = "ferg acva ghil ilro"
+EMAIL_HOST_PASSWORD = "your gamil dev password"
 # Application definition
 
 CSRF_TRUSTED_ORIGINS = [
